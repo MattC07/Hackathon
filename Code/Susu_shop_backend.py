@@ -3,6 +3,7 @@ import os
 import csv
 import numpy as np
 import math
+import warnings
 
 class Backend(object):
     def __init__(self, db_path):
@@ -185,7 +186,7 @@ class Backend(object):
         db_connection.close()
         return None
 
-    def add_item_to_cart(self, product_id, user_id):
+    def add_item_to_basket(self, product_id, user_id):
         db_connection = sqlite3.connect(self.db_path)
         db_cursor = db_connection.cursor()
 
@@ -194,15 +195,17 @@ class Backend(object):
 
         # Remove one from inventory table
         quantity = db_cursor.execute("SELECT product_quantity FROM inventory WHERE product_id = ?;", [(product_id)]).fetchone()[0]
-        db_cursor.execute("UPDATE inventory SET product_quantity = ? WHERE product_id = ?;", [(quantity - 1), (product_id)])
-
-        # Add one to inventory table
-        item_in_basket = db_cursor.execute("SELECT basket_product_quantity FROM basket WHERE basket_product_id = ? AND basket_session_id = ?;", [(product_id), (session_id)]).fetchone()
-        if item_in_basket is None:
-            db_cursor.execute("INSERT INTO basket (basket_product_id, basket_session_id, basket_product_quantity) VALUES (?, ?, ?);", [(product_id), (session_id), (1)])
+        if quantity > 0:
+            db_cursor.execute("UPDATE inventory SET product_quantity = ? WHERE product_id = ?;", [(quantity - 1), (product_id)])
+            # Add one to inventory table
+            item_in_basket = db_cursor.execute("SELECT basket_product_quantity FROM basket WHERE basket_product_id = ? AND basket_session_id = ?;", [(product_id), (session_id)]).fetchone()
+            if item_in_basket is None:
+                db_cursor.execute("INSERT INTO basket (basket_product_id, basket_session_id, basket_product_quantity) VALUES (?, ?, ?);", [(product_id), (session_id), (1)])
+            else:
+                basket_quantity = item_in_basket[0]
+                db_cursor.execute("UPDATE basket SET basket_product_quantity = ? WHERE basket_product_id = ?;", [(basket_quantity + 1), (product_id)])
         else:
-            basket_quantity = item_in_basket[0]
-            db_cursor.execute("UPDATE basket SET basket_product_quantity = ? WHERE basket_product_id = ?;", [(basket_quantity + 1), (product_id)])
+            warnings.warn("WARNING: Attempt to add item to basket when inventory is empty")
 
         # DEBUG
         # print("All inventory elements:")
@@ -217,7 +220,8 @@ class Backend(object):
         db_connection.commit()
         db_connection.close()
 
-    def check_active_user_session(self):
+    def return_item_to_inventory(self, user_id):
+        
         return None
 
 class InventoryElement(object):
@@ -243,8 +247,8 @@ if __name__ == '__main__':
     shelf = backend.get_inventory()
     # backend.debug_inventory(shelf)
 
-    backend.add_item_to_cart(10, 2)
-    backend.add_item_to_cart(1, 2)
-    backend.add_item_to_cart(1, 2)
+    backend.add_item_to_basket(10, 2)
+    backend.add_item_to_basket(1, 2)
+    backend.add_item_to_basket(1, 2)
     # DEBUG:
     os.remove("./Database/susu_shop.db")

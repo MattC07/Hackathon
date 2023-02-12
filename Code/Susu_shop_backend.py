@@ -13,6 +13,9 @@ class Backend(object):
             self.__init_database()
         
     def __init_database(self):
+        if os.path.isdir("./Database") is True:
+            os.mkdir("./Database")
+
         # Open database
         db_connection = sqlite3.connect(self.db_path)
         db_cursor = db_connection.cursor()

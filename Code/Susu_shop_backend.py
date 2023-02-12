@@ -143,7 +143,7 @@ class Backend(object):
                 # Empty object
                 shelf[row, col] = InventoryElement()
                 # DEBUG
-                # shelf_debug[row, col] = -1
+                # shelf_debug[row, col] = 0
 
         # Split shelf into pages (2d -> 3d)
         shelf_page = 2
@@ -157,20 +157,51 @@ class Backend(object):
         db_connection.close()
         return shelf
 
+    def debug_inventory(self, shelf):
+        shelf = np.array(np.concatenate(shelf, 1))
+        for row in range(np.shape(shelf)[0]):
+            for col in range(np.shape(shelf)[1]):
+                print("%2d" % shelf[row, col].index, end = " ")
+            print()
+
+        return None
+
     def start_session(self, user_id):
         db_connection = sqlite3.connect(self.db_path)
         db_cursor = db_connection.cursor()
-        db_cursor.execute("INSERT INTO active_session (user_id) VALUES (" + str(user_id) + ");")
+
+        # If there's no active session for the user, create a new one, otherwise pass
+        has_active_session = db_cursor.execute("SELECT * FROM active_session WHERE user_id = " + str(user_id) + ";")
+        if has_active_session.fetchall() == []:
+            db_cursor.execute("INSERT INTO active_session (user_id) VALUES (" + str(user_id) + ");")
+
+        # DEBUG
+        # inv_data = db_cursor.execute("SELECT * FROM active_session;")
+        # print(inv_data.fetchall())
+
+        db_connection.commit()
+        db_connection.close()
+        return None
+
+    def add_item_to_cart(self, product_index, user_id):
+        db_connection = sqlite3.connect(self.db_path)
+        db_cursor = db_connection.cursor()
+
+        # Get session ID
+        session_id = db_cursor.execute("SELECT session_id FROM active_session WHERE user_id = " + user_id + ");")
+
+        # Remove one from inventory table
+        quantity = db_cursor.execute("SELECT product_quantity FROM inventory WHERE product_id = " + product_index + ");")
+        db_cursor.execute("UPDATE inventory SET product_quantity = " + str(quantity - 1) + " WHERE product_id = " + product_index + ";")
+
+        # Add one to inventory table
 
         # DEBUG
         # inv_data = db_cursor.execute("SELECT * FROM active_session;")
         # print(inv_data.fetchall())
 
         db_connection.close()
-        return None
 
-    def add_item_to_cart(self, product_index, user_id):
-        return None
 
     def check_active_user_session(self):
         return None
@@ -195,6 +226,9 @@ class InventoryElement(object):
 if __name__ == '__main__':
     backend = Backend(r"./Database/susu_shop.db")
     backend.start_session(1)
-    backend.get_inventory()
+    shelf = backend.get_inventory()
+    backend.debug_inventory(shelf)
+
+    # backend.add_item_to_cart(1, 1)
     # DEBUG:
     os.remove("./Database/susu_shop.db")

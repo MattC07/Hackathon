@@ -221,8 +221,33 @@ class Backend(object):
         db_connection.close()
 
     def return_item_to_inventory(self, user_id):
-        
-        return None
+        db_connection = sqlite3.connect(self.db_path)
+        db_cursor = db_connection.cursor()
+
+        # Get session ID
+        session_id = db_cursor.execute("SELECT session_id FROM active_session WHERE user_id = ?;", [(user_id)]).fetchone()[0]
+
+        # Get session's basket content
+        session_basket = db_cursor.execute("SELECT basket_product_id, basket_product_quantity FROM basket WHERE basket_session_id = ?", [(session_id)]).fetchall()
+        if session_basket != []:
+            # Delete from basket
+            db_cursor.execute("DELETE FROM basket WHERE basket_session_id = ?", [(session_id)])
+
+            # Add to inventory
+            print(session_basket)
+            for (index, quantity) in session_basket:
+                inv_quantity = db_cursor.execute("SELECT product_quantity FROM inventory WHERE product_id = ?;", [(index)]).fetchone()[0]
+                db_cursor.execute("UPDATE inventory SET product_quantity = ? WHERE product_id = ?;", [(inv_quantity + quantity), (index)])
+
+        # DEBUG
+        # print("All inventory elements:")
+        # inv_data = db_cursor.execute("SELECT * FROM inventory;")
+        # for row in inv_data:
+        #     print(row)
+        # print("All basket elements:")
+        # inv_data = db_cursor.execute("SELECT * FROM basket;")
+        # for row in inv_data:
+        #     print(row)
 
 class InventoryElement(object):
     def __init__(self, index = 0, type = -1, name = "n/a", price = 0, description = "n/a", quantity = 0):
@@ -250,5 +275,7 @@ if __name__ == '__main__':
     backend.add_item_to_basket(10, 2)
     backend.add_item_to_basket(1, 2)
     backend.add_item_to_basket(1, 2)
+
+    backend.return_item_to_inventory(2)
     # DEBUG:
     os.remove("./Database/susu_shop.db")

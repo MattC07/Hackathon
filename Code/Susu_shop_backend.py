@@ -3,6 +3,7 @@ import os
 import csv
 import numpy as np
 import math
+import warnings
 
 class Backend(object):
     def __init__(self, db_path):
@@ -13,7 +14,7 @@ class Backend(object):
             self.__init_database()
         
     def __init_database(self):
-        if os.path.isdir("./Database") is True:
+        if os.path.isdir("./Database") is False:
             os.mkdir("./Database")
 
         # Open database
@@ -85,10 +86,12 @@ class Backend(object):
 
         # Create basket table
         create_basket_table = """CREATE TABLE basket(
-            product_id INTEGER PRIMARY KEY,
-            product_session INTEGER,
-            product_quantity INTEGER,
-            FOREIGN KEY(product_session) REFERENCES active_user(active_session)
+            basket_id INTEGER PRIMARY KEY,
+            basket_product_id INTEGER,
+            basket_session_id INTEGER,
+            basket_product_quantity INTEGER,
+            FOREIGN KEY(basket_session_id) REFERENCES active_session(session_id)
+            FOREIGN KEY(basket_product_id) REFERENCES inventory(product_id)
         );"""
         db_cursor.execute(create_basket_table)
 
@@ -143,7 +146,7 @@ class Backend(object):
                 # Empty object
                 shelf[row, col] = InventoryElement()
                 # DEBUG
-                # shelf_debug[row, col] = -1
+                # shelf_debug[row, col] = 0
 
         # Split shelf into pages (2d -> 3d)
         shelf_page = 2
@@ -157,23 +160,94 @@ class Backend(object):
         db_connection.close()
         return shelf
 
+    def debug_inventory(self, shelf):
+        shelf = np.array(np.concatenate(shelf, 1))
+        for row in range(np.shape(shelf)[0]):
+            for col in range(np.shape(shelf)[1]):
+                print("%2d" % shelf[row, col].index, end = " ")
+            print()
+
+        return None
+
     def start_session(self, user_id):
         db_connection = sqlite3.connect(self.db_path)
         db_cursor = db_connection.cursor()
-        db_cursor.execute("INSERT INTO active_session (user_id) VALUES (" + str(user_id) + ");")
+
+        # If there's no active session for the user, create a new one, otherwise pass
+        has_active_session = db_cursor.execute("SELECT * FROM active_session WHERE user_id = " + str(user_id) + ";")
+        if has_active_session.fetchall() == []:
+            db_cursor.execute("INSERT INTO active_session (user_id) VALUES (" + str(user_id) + ");")
 
         # DEBUG
         # inv_data = db_cursor.execute("SELECT * FROM active_session;")
         # print(inv_data.fetchall())
 
+        db_connection.commit()
         db_connection.close()
         return None
 
-    def add_item_to_cart(self, product_index, user_id):
-        return None
+    def add_item_to_basket(self, product_id, user_id):
+        db_connection = sqlite3.connect(self.db_path)
+        db_cursor = db_connection.cursor()
 
-    def check_active_user_session(self):
-        return None
+        # Get session ID
+        session_id = db_cursor.execute("SELECT session_id FROM active_session WHERE user_id = ?;", [(user_id)]).fetchone()[0]
+
+        # Remove one from inventory table
+        quantity = db_cursor.execute("SELECT product_quantity FROM inventory WHERE product_id = ?;", [(product_id)]).fetchone()[0]
+        if quantity > 0:
+            db_cursor.execute("UPDATE inventory SET product_quantity = ? WHERE product_id = ?;", [(quantity - 1), (product_id)])
+            # Add one to inventory table
+            item_in_basket = db_cursor.execute("SELECT basket_product_quantity FROM basket WHERE basket_product_id = ? AND basket_session_id = ?;", [(product_id), (session_id)]).fetchone()
+            if item_in_basket is None:
+                db_cursor.execute("INSERT INTO basket (basket_product_id, basket_session_id, basket_product_quantity) VALUES (?, ?, ?);", [(product_id), (session_id), (1)])
+            else:
+                basket_quantity = item_in_basket[0]
+                db_cursor.execute("UPDATE basket SET basket_product_quantity = ? WHERE basket_product_id = ?;", [(basket_quantity + 1), (product_id)])
+        else:
+            warnings.warn("WARNING: Attempt to add item to basket when inventory is empty")
+
+        # DEBUG
+        # print("All inventory elements:")
+        # inv_data = db_cursor.execute("SELECT * FROM inventory;")
+        # for row in inv_data:
+        #     print(row)
+        # print("All basket elements:")
+        # inv_data = db_cursor.execute("SELECT * FROM basket;")
+        # for row in inv_data:
+        #     print(row)
+
+        db_connection.commit()
+        db_connection.close()
+
+    def return_item_to_inventory(self, user_id):
+        db_connection = sqlite3.connect(self.db_path)
+        db_cursor = db_connection.cursor()
+
+        # Get session ID
+        session_id = db_cursor.execute("SELECT session_id FROM active_session WHERE user_id = ?;", [(user_id)]).fetchone()[0]
+
+        # Get session's basket content
+        session_basket = db_cursor.execute("SELECT basket_product_id, basket_product_quantity FROM basket WHERE basket_session_id = ?", [(session_id)]).fetchall()
+        if session_basket != []:
+            # Delete from basket
+            db_cursor.execute("DELETE FROM basket WHERE basket_session_id = ?", [(session_id)])
+
+            # Add to inventory
+            print(session_basket)
+            for (index, quantity) in session_basket:
+                inv_quantity = db_cursor.execute("SELECT product_quantity FROM inventory WHERE product_id = ?;", [(index)]).fetchone()[0]
+                db_cursor.execute("UPDATE inventory SET product_quantity = ? WHERE product_id = ?;", [(inv_quantity + quantity), (index)])
+
+        # DEBUG
+        # print("All inventory elements:")
+        # inv_data = db_cursor.execute("SELECT * FROM inventory;")
+        # for row in inv_data:
+        #     print(row)
+        # print("All basket elements:")
+        # inv_data = db_cursor.execute("SELECT * FROM basket;")
+        # for row in inv_data:
+        #     print(row)
 
 class InventoryElement(object):
     def __init__(self, index = 0, type = -1, name = "n/a", price = 0, description = "n/a", quantity = 0):
@@ -194,7 +268,14 @@ class InventoryElement(object):
     
 if __name__ == '__main__':
     backend = Backend(r"./Database/susu_shop.db")
-    backend.start_session(1)
-    backend.get_inventory()
+    backend.start_session(2)
+    shelf = backend.get_inventory()
+    # backend.debug_inventory(shelf)
+
+    backend.add_item_to_basket(10, 2)
+    backend.add_item_to_basket(1, 2)
+    backend.add_item_to_basket(1, 2)
+
+    backend.return_item_to_inventory(2)
     # DEBUG:
     os.remove("./Database/susu_shop.db")

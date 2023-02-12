@@ -13,7 +13,7 @@ class Backend(object):
             self.__init_database()
         
     def __init_database(self):
-        if os.path.isdir("./Database") is True:
+        if os.path.isdir("./Database") is False:
             os.mkdir("./Database")
 
         # Open database

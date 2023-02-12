@@ -1,0 +1,19 @@
+product_id,product_type_code,product_name,product_price
+1,11,Red Bull Energy Drink 250ml,1.6
+2,11,Coca-Cola Original Taste 150ml,0.5
+3,5,Sainsbury's Egg & Cress Sandwich,1.75
+4,5,Sainsbury's Chicken Salad Sandwich,2.75
+5,6,Sainsbury's Classic Salad Bowl 165g,1.2
+6,6,Sainsbury's Mediterranean Salad Bowl 168g,1.9
+7,7,Starbucks Tripleshot Espresso Iced Coffee Drink 300ml,1.75
+8,7,Starbucks DoubleShot Espresso Iced Coffee 200ml,2.2
+9,8,Sainsbury's Mango 250g,2.25
+10,8,Sainsbury's Exotic Fruit Salad 240g,2.25
+11,9,Doritos Tangy Cheese Sharing Tortilla Chips Crisps 180g,1.75
+12,9,Doritos Cool Original Sharing Tortilla Chips Crisps 180g,1.75
+13,10,Sainsbury's Home Black Ballpoint Pen 10pk,1.75
+14,10,Sainsbury's Home Blue Ballpoint Pens 10pk,1.5
+15,5,Sainsbury's Prawn Mayo Sandwich,2.75
+16,5,Sainsbury's Tuna Mayo Sandwich,1.75
+17,11,Sprite 150ml,0.45
+18,11,Fanta Orange 150ml,0.45

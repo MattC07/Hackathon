@@ -85,10 +85,12 @@ class Backend(object):
 
         # Create basket table
         create_basket_table = """CREATE TABLE basket(
-            product_id INTEGER PRIMARY KEY,
-            product_session INTEGER,
-            product_quantity INTEGER,
-            FOREIGN KEY(product_session) REFERENCES active_user(active_session)
+            basket_id INTEGER PRIMARY KEY,
+            basket_product_id INTEGER,
+            basket_session_id INTEGER,
+            basket_product_quantity INTEGER,
+            FOREIGN KEY(basket_session_id) REFERENCES active_session(session_id)
+            FOREIGN KEY(basket_product_id) REFERENCES inventory(product_id)
         );"""
         db_cursor.execute(create_basket_table)
 
@@ -183,25 +185,37 @@ class Backend(object):
         db_connection.close()
         return None
 
-    def add_item_to_cart(self, product_index, user_id):
+    def add_item_to_cart(self, product_id, user_id):
         db_connection = sqlite3.connect(self.db_path)
         db_cursor = db_connection.cursor()
 
         # Get session ID
-        session_id = db_cursor.execute("SELECT session_id FROM active_session WHERE user_id = " + user_id + ");")
+        session_id = db_cursor.execute("SELECT session_id FROM active_session WHERE user_id = ?;", [(user_id)]).fetchone()[0]
 
         # Remove one from inventory table
-        quantity = db_cursor.execute("SELECT product_quantity FROM inventory WHERE product_id = " + product_index + ");")
-        db_cursor.execute("UPDATE inventory SET product_quantity = " + str(quantity - 1) + " WHERE product_id = " + product_index + ";")
+        quantity = db_cursor.execute("SELECT product_quantity FROM inventory WHERE product_id = ?;", [(product_id)]).fetchone()[0]
+        db_cursor.execute("UPDATE inventory SET product_quantity = ? WHERE product_id = ?;", [(quantity - 1), (product_id)])
 
         # Add one to inventory table
+        item_in_basket = db_cursor.execute("SELECT basket_product_quantity FROM basket WHERE basket_product_id = ? AND basket_session_id = ?;", [(product_id), (session_id)]).fetchone()
+        if item_in_basket is None:
+            db_cursor.execute("INSERT INTO basket (basket_product_id, basket_session_id, basket_product_quantity) VALUES (?, ?, ?);", [(product_id), (session_id), (1)])
+        else:
+            basket_quantity = item_in_basket[0]
+            db_cursor.execute("UPDATE basket SET basket_product_quantity = ? WHERE basket_product_id = ?;", [(basket_quantity + 1), (product_id)])
 
         # DEBUG
-        # inv_data = db_cursor.execute("SELECT * FROM active_session;")
-        # print(inv_data.fetchall())
+        # print("All inventory elements:")
+        # inv_data = db_cursor.execute("SELECT * FROM inventory;")
+        # for row in inv_data:
+        #     print(row)
+        # print("All basket elements:")
+        # inv_data = db_cursor.execute("SELECT * FROM basket;")
+        # for row in inv_data:
+        #     print(row)
 
+        db_connection.commit()
         db_connection.close()
-
 
     def check_active_user_session(self):
         return None
@@ -225,10 +239,12 @@ class InventoryElement(object):
     
 if __name__ == '__main__':
     backend = Backend(r"./Database/susu_shop.db")
-    backend.start_session(1)
+    backend.start_session(2)
     shelf = backend.get_inventory()
-    backend.debug_inventory(shelf)
+    # backend.debug_inventory(shelf)
 
-    # backend.add_item_to_cart(1, 1)
+    backend.add_item_to_cart(10, 2)
+    backend.add_item_to_cart(1, 2)
+    backend.add_item_to_cart(1, 2)
     # DEBUG:
     os.remove("./Database/susu_shop.db")

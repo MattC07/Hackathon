@@ -1,14 +1,16 @@
-from PyQt5.QtWidgets import QApplication, QMainWindow
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel
 from PyQt5 import QtCore, QtGui
 import sys
-
+import os
 from Susu_shop_backend import Backend
-
 
 class MyItems(QMainWindow):
 
     def __init__(self):
         super().__init__()
+
+        self.backend = Backend(r"./Database/susu_shop.db")
+        self.backend.start_session(1)
 
         self.timer = QtCore.QTimer(self)
         
@@ -42,7 +44,7 @@ class MyItems(QMainWindow):
 
 
         self.objSelected_flag = False
-        self.objSwipeErase_flag = False
+        self.objMove_flag = False
         self.objChange_flag = False
         self.objRelease_flag = False
 
@@ -53,9 +55,10 @@ class MyItems(QMainWindow):
         self.obj_added_col = 0
 
         self.imageNumber = 1
+        self.obj_count = 0
 
-        self.thread = QtCore.QThread()
-
+        self.counter = QLabel('0', self)
+        self.counter.move(int(self.w_width-self.border_width-self.basket_width+5),int(self.w_height-self.border_height-(self.basket_width/2)))
 
         self.windowSize()
         self.setGeometry(int(self.pos_x), int(self.pos_y), int(self.w_width) , int(self.w_height))
@@ -69,143 +72,127 @@ class MyItems(QMainWindow):
 
     def keyPressEvent(self, event):
         if event.key() == QtCore.Qt.Key_Escape:
+            os.remove("./Database/susu_shop.db")
             self.close()
 
     def paintEvent(self, e):
         painter = QtGui.QPainter(self)
-
-        painter.fillRect(QtCore.QRectF(0,0,self.w_width,self.w_height), QtGui.QBrush(QtGui.QColor("white")))
-        
-        (int(self.basket_border_width), int(self.basket_border_height), int(self.basket_width), int(self.basket_height))
+        pixmap_background = QtGui.QPixmap("./Image/wood_background.png")
+        painter.drawPixmap(0,0,int(self.w_width),int(self.w_height),pixmap_background)
 
         self.obj_space_x = (self.w_width-(4*self.obj_width)-(2*self.border_width))/3
         self.obj_space_y = (self.w_height-(2*self.border_height)-self.basket_height-(3*self.obj_height))/3
-        
-        if self.objInitial_flag is True:
-            for i in range(3):
-                for k in range(4):
-                    self.imageNumber = shelf[0,i,k].index
-                    pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
-                    #threading.Thread(painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)).start()  # Trigger Thread
-                    painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
-            self.objInitial_flag = False
+
+        for i in range(3):
+            pixmap_shelf = QtGui.QPixmap("./Image/wood_shelf.png")
+            painter.drawPixmap(0, int((self.border_height + self.obj_height)*(i+1)+(i*4)), int(self.w_width),25,pixmap_shelf)
 
         self.basket_border_width = (self.w_width - self.basket_width)/2
         self.basket_border_height = (self.w_height - self.border_height - self.basket_height)
         pixmap = QtGui.QPixmap("./Image/shopping_cart.png")
-        #threading.Thread(painter.drawPixmap(int(self.basket_border_width), int(self.basket_border_height), int(self.basket_width), int(self.basket_height),pixmap)).start()  # Trigger Thread
         painter.drawPixmap(int(self.basket_border_width), int(self.basket_border_height), int(self.basket_width), int(self.basket_height),pixmap)
- 
-        #painter.drawRect(int(self.basket_border_width), int(self.basket_border_height), int(self.basket_width), int(self.basket_height))
 
-
-        if self.objSelected_flag is True:
-            if self.objPage_number == 1:
-                self.imageNumber = shelf[self.objPage_number-1,self.obj_added_row,self.obj_added_col].index
-                pixmap_select = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
-                #painter.setBrush(QtGui.QBrush(QtCore.Qt.yellow, QtCore.Qt.DiagCrossPattern))
-            else:
-                self.imageNumber = shelf[self.objPage_number-1,self.obj_added_row,self.obj_added_col].index
-                pixmap_select = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
-                #painter.setBrush(QtGui.QBrush(QtCore.Qt.blue, QtCore.Qt.DiagCrossPattern))
+        counter = QtCore.QRect(int(self.w_width-105),int(self.w_height-self.border_height-100),54,50)
+        painter.fillRect(counter, QtGui.QBrush(QtCore.Qt.red))
+        painter.drawText(counter, QtCore.Qt.AlignCenter, str(self.obj_count))
 
  
-
-            for i in range(3):
-                for k in range(4):
-                    # if self.objPage_number == 2:
-                    #     obj_added_col_new = k + 5
-                    # else:
-                    #     obj_added_col_new = k
-
-                    self.imageNumber = shelf[self.objPage_number-1,i,k].index
-                    pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
-                    #threading.Thread(painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)).start()  # Trigger Thread
-                    painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
-                    #painter.drawRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height) 
-            #threading.Thread(painter.drawPixmap(QtCore.QRect(self.mouse_x_pos, self.mouse_y_pos, self.obj_width, self.obj_height),pixmap_select)).start()  # Trigger Thread
-            painter.drawPixmap(QtCore.QRect(self.mouse_x_pos, self.mouse_y_pos, self.obj_width, self.obj_height),pixmap_select)
-            #painter.drawRect(self.mouse_x_pos, self.mouse_y_pos, self.obj_width, self.obj_height)    
-
-        if self.objSwipeErase_flag is True:
+        if self.objMove_flag is True:
             if self.moveLeft_flag is True:
                 if self.objPage_number == 1:
                     for i in range(3):
                         for k in range(8):
                             if k < 4:
-                               self.imageNumber = shelf[self.objPage_number-1,i,k].index 
+                                self.imageNumber = self.backend.shelf[self.objPage_number-1,i,k].index 
+                                if self.backend.shelf[self.objPage_number-1,i,k].quantity == 0:
+                                    pixmap = QtGui.QPixmap("./Inventory/" + "g" + str(self.imageNumber) + ".png")
+                                else:
+                                    pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
                             else:
-                                self.imageNumber = shelf[self.objPage_number-0,i,k-4].index
-
-                            #self.imageNumber = shelf[self.objPage_number-1,i,k].index
-                            pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
+                                self.imageNumber = self.backend.shelf[self.objPage_number-0,i,k-4].index
+                                if self.backend.shelf[self.objPage_number-0,i,k-4].quantity == 0:
+                                    pixmap = QtGui.QPixmap("./Inventory/" + "g" + str(self.imageNumber) + ".png")
+                                else:
+                                    pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
                             painter.drawPixmap(QtCore.QRect(int((self.border_width + ((self.obj_width+self.obj_space_x)*k)-self.movement_change_x_pos)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
 
-                            # if k < 4:
-                            #     painter.setBrush(QtGui.QBrush(QtCore.Qt.yellow, QtCore.Qt.DiagCrossPattern))
-                            # else:
-                            #     painter.setBrush(QtGui.QBrush(QtCore.Qt.blue, QtCore.Qt.DiagCrossPattern))
-                            #painter.drawRect(int((self.border_width + ((self.obj_width+self.obj_space_x)*k)-self.movement_change_x_pos)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height)
                 else:
-                    #painter.setBrush(QtGui.QBrush(QtCore.Qt.blue, QtCore.Qt.DiagCrossPattern))
                     for i in range(3):
                         for k in range(4):
-                            self.imageNumber = shelf[self.objPage_number-1,i,k].index
-                            pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
+                            self.imageNumber = self.backend.shelf[self.objPage_number-1,i,k].index
+                            if self.backend.shelf[self.objPage_number-1,i,k].quantity == 0:
+                                pixmap = QtGui.QPixmap("./Inventory/" + "g" + str(self.imageNumber) + ".png")
+                            else:
+                                pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
                             painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
-
-                            #painter.drawRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height)  
 
             elif self.moveRight_flag is True:
                 if self.objPage_number == 2:
                     for i in range(3):
                         for k in range(8):
                             if k > 3:
-                                self.imageNumber = shelf[self.objPage_number-1,i,k-4].index
+                                self.imageNumber = self.backend.shelf[self.objPage_number-1,i,k-4].index
+                                if self.backend.shelf[self.objPage_number-1,i,k-4].quantity == 0:
+                                    pixmap = QtGui.QPixmap("./Inventory/" + "g" + str(self.imageNumber) + ".png")
+                                else:
+                                    pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
                             else:
-                                self.imageNumber = shelf[self.objPage_number-2,i,k].index
-
-                            pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
+                                self.imageNumber = self.backend.shelf[self.objPage_number-2,i,k].index
+                                if self.backend.shelf[self.objPage_number-2,i,k].quantity == 0:
+                                    pixmap = QtGui.QPixmap("./Inventory/" + "g" + str(self.imageNumber) + ".png")
+                                else:
+                                    pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
                             painter.drawPixmap(QtCore.QRect(int((self.border_width + ((self.obj_width+self.obj_space_x)*k)-self.movement_change_x_pos)-self.w_width), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
 
-                            # if k > 3:
-                            #     painter.setBrush(QtGui.QBrush(QtCore.Qt.blue, QtCore.Qt.DiagCrossPattern))
-                            # else:
-                            #     painter.setBrush(QtGui.QBrush(QtCore.Qt.yellow, QtCore.Qt.DiagCrossPattern))
-                            #painter.drawRect(int((self.border_width + ((self.obj_width+self.obj_space_x)*k)-self.movement_change_x_pos)-self.w_width), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height)
                 else:
-                    #painter.setBrush(QtGui.QBrush(QtCore.Qt.yellow, QtCore.Qt.DiagCrossPattern))
                     for i in range(3):
                         for k in range(4):
-                            self.imageNumber = shelf[self.objPage_number-1,i,k].index
-                            pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
+                            self.imageNumber = self.backend.shelf[self.objPage_number-1,i,k].index
+                            if self.backend.shelf[self.objPage_number-1,i,k].quantity == 0:
+                                pixmap = QtGui.QPixmap("./Inventory/" + "g" + str(self.imageNumber) + ".png")
+                            else:
+                                pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
                             painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
-                            #painter.drawRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height)   
+
+        else:
+            for i in range(3):
+                for k in range(4):
+                    self.imageNumber = self.backend.shelf[self.objPage_number-1,i,k].index
+                    if self.backend.shelf[self.objPage_number-1,i,k].quantity == 0:
+                        pixmap = QtGui.QPixmap("./Inventory/" + "g" + str(self.imageNumber) + ".png")
+                    else:
+                        pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
+                    painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
+
+        if self.objSelected_flag is True:
+            if self.objPage_number == 1:
+                self.imageNumber = self.backend.shelf[self.objPage_number-1,self.obj_added_row,self.obj_added_col].index
+                pixmap_select = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
+            else:
+                self.imageNumber = self.backend.shelf[self.objPage_number-1,self.obj_added_row,self.obj_added_col].index
+                pixmap_select = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
+
+            for i in range(3):
+                for k in range(4):
+                    self.imageNumber = self.backend.shelf[self.objPage_number-1,i,k].index
+                    if self.backend.shelf[self.objPage_number-1,i,k].quantity == 0:
+                        pixmap = QtGui.QPixmap("./Inventory/" + "g" + str(self.imageNumber) + ".png")
+                    else:
+                        pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
+                    painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
+            painter.drawPixmap(QtCore.QRect(self.mouse_x_pos, self.mouse_y_pos, self.obj_width, self.obj_height),pixmap_select)
+  
 
         if self.objChange_flag is True:
             for i in range(3):
                 for k in range(4):
-                    self.imageNumber = shelf[self.objPage_number-1,i,k].index
-                    pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
+                    self.imageNumber = self.backend.shelf[self.objPage_number-1,i,k].index
+                    if self.backend.shelf[self.objPage_number-1,i,k].quantity == 0:
+                            pixmap = QtGui.QPixmap("./Inventory/" + "g" + str(self.imageNumber) + ".png")
+                    else:
+                            pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
                     painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
             self.objChange_flag = False
-
-            # if self.objPage_number == 2:
-            #     #painter.setBrush(QtGui.QBrush(QtCore.Qt.blue, QtCore.Qt.DiagCrossPattern))
-            #     for i in range(3):
-            #         for k in range(4):
-            #             self.imageNumber = shelf[self.objPage_number-1,i,k].index
-            #             pixmap = QtGui.QPixmap("./Inventory/" + str(self.imageNumber) + ".png")
-            #             painter.drawPixmap(QtCore.QRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height),pixmap)
-            #             #painter.drawRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height)
-            # else:
-            #     #painter.setBrush(QtGui.QBrush(QtCore.Qt.yellow, QtCore.Qt.DiagCrossPattern))
-            #     for i in range(3):
-            #         for k in range(4):
-            #             painter.drawRect(int(self.border_width + ((self.obj_width+self.obj_space_x)*k)), int(self.border_height +((self.obj_space_y+self.obj_height)*i)), self.obj_width, self.obj_height)  
-            
-
-
 
     def mousePressEvent(self, event):
         self.mouse_x_pos = event.x()
@@ -229,7 +216,7 @@ class MyItems(QMainWindow):
                         self.objRelease_flag = False
                         break
 
-        self.objSwipeErase_flag = True    
+        self.objMove_flag = True    
 
     def mouseMoveEvent(self, event):
         self.mouse_x_pos = event.x()
@@ -238,19 +225,18 @@ class MyItems(QMainWindow):
         if self.objSelected_flag is True:
             self.update()
 
-        if self.objSwipeErase_flag is True:
-            self.movement_change_x_pos = self.prev_mouse_x_pos - self.mouse_x_pos
-            if(self.movement_change_x_pos > 0):
-                self.moveLeft_flag = True
-                self.moveRight_flag = False
-            else:
-                self.moveRight_flag = True
-                self.moveLeft_flag = False
-
+        if(self.mouse_y_pos < self.basket_border_height):
+            if self.objMove_flag is True:
+                self.movement_change_x_pos = self.prev_mouse_x_pos - self.mouse_x_pos
+                if(self.movement_change_x_pos > 0):
+                    self.moveLeft_flag = True
+                    self.moveRight_flag = False
+                else:
+                    self.moveRight_flag = True
+                    self.moveLeft_flag = False
         
-        if(self.mouse_x_pos < self.w_width) and (self.mouse_x_pos > 0):
-         self.update()
-
+            if(self.mouse_x_pos < self.w_width) and (self.mouse_x_pos > 0):
+                self.update()
 
 
     def mouseReleaseEvent(self, event):
@@ -260,7 +246,9 @@ class MyItems(QMainWindow):
         if self.objSelected_flag is True:
             if((self.mouse_y_pos > self.basket_border_height) and (self.mouse_y_pos < self.basket_border_height + self.basket_height )):
                 if((self.mouse_x_pos > self.basket_border_width) and (self.mouse_x_pos < self.basket_border_width + self.basket_width )):
-                    print("obj added", self.objPage_number-1, self.obj_added_row, self.obj_added_col)
+                    self.backend.add_item_to_basket(self.backend.shelf[self.objPage_number-1, self.obj_added_row, self.obj_added_col].index,1)
+                    print("Quantity: ", self.backend.shelf[self.objPage_number-1, self.obj_added_row, self.obj_added_col].quantity)
+                    self.obj_count += 1
         
         if self.objPage_number == 1:
             if self.prev_mouse_x_pos > (self.w_width/2):
@@ -275,30 +263,29 @@ class MyItems(QMainWindow):
         self.objChange_flag = True
         self.objRelease_flag = True
         self.objSelected_flag = False 
-        self.objSwipeErase_flag = False
+        self.objMove_flag = False
         self.update()
 
     def longPressed(self):
         uncertainty = 5
 
         if(( self.prev_mouse_x_pos + uncertainty >= self.mouse_x_pos) and (self.prev_mouse_x_pos - uncertainty <= self.mouse_x_pos ) and ( self.prev_mouse_y_pos + uncertainty >= self.mouse_y_pos) and (self.prev_mouse_y_pos - uncertainty <= self.mouse_y_pos )):
-            self.objSelected_flag = True
-            self.objSwipeErase_flag = False
+            if self.backend.shelf[self.objPage_number-1,self.obj_added_row,self.obj_added_col].quantity != 0:
+                self.objSelected_flag = True
+            else:
+                self.objSelected_flag = False
+            #self.objSelected_flag = True
+            self.objMove_flag = False
             if self.objRelease_flag is False:
                 self.update()
         else:
-            self.objSwipeErase_flag = True
-            #self.update()
+            self.objMove_flag = True
 
         self.timer.stop()  
-
-
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     w = MyItems()
-    backend = Backend(r"./Database/susu_shop.db")
-    shelf = backend.get_inventory()
     w.show()
     sys.exit(app.exec_())

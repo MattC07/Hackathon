@@ -8,6 +8,7 @@ import warnings
 class Backend(object):
     def __init__(self, db_path):
         self.db_path = db_path
+        self.shelf = None
 
         # Create SQLite database if not yet exist
         if os.path.exists(db_path) is not True:
@@ -108,9 +109,10 @@ class Backend(object):
         # Close database
         db_connection.commit()
         db_connection.close()
+        self.refresh_inventory()
         return None
 
-    def get_inventory(self):
+    def refresh_inventory(self):
         db_connection = sqlite3.connect(self.db_path)
         db_cursor = db_connection.cursor()
 
@@ -132,25 +134,25 @@ class Backend(object):
             shelf_col = shelf_col_min
 
         shelf_total = shelf_row * shelf_col
-        shelf = np.empty((shelf_row, shelf_col), dtype=InventoryElement)
+        _shelf = np.empty((shelf_row, shelf_col), dtype=InventoryElement)
         # DEBUG
         # shelf_debug = np.empty((shelf_row, shelf_col))
         for index in range(shelf_total):
             row = index // shelf_col
             col = index % shelf_col
             if index < total_inventory_num:
-                shelf[row, col] = InventoryElement(*total_inventory[index])
+                _shelf[row, col] = InventoryElement(*total_inventory[index])
                 # DEBUG
                 # shelf_debug[row, col] = total_inventory[index][0]
             else:
                 # Empty object
-                shelf[row, col] = InventoryElement()
+                _shelf[row, col] = InventoryElement()
                 # DEBUG
                 # shelf_debug[row, col] = 0
 
-        # Split shelf into pages (2d -> 3d)
+        # Split _shelf into pages (2d -> 3d)
         shelf_page = 2
-        shelf = np.array(np.split(shelf, shelf_page, 1))
+        self.shelf = np.array(np.split(_shelf, shelf_page, 1)).copy()
 
         # DEBUG
         # shelf_debug = np.array(np.split(shelf_debug, shelf_page, 1))
@@ -158,14 +160,15 @@ class Backend(object):
         #     print(shelf_debug)
 
         db_connection.close()
-        return shelf
+        return None
 
-    def debug_inventory(self, shelf):
-        shelf = np.array(np.concatenate(shelf, 1))
-        for row in range(np.shape(shelf)[0]):
-            for col in range(np.shape(shelf)[1]):
-                print("%2d" % shelf[row, col].index, end = " ")
+    def debug_inventory(self):
+        shelf_debug = np.array(np.concatenate(self.shelf, 1))
+        for row in range(np.shape(shelf_debug)[0]):
+            for col in range(np.shape(shelf_debug)[1]):
+                print("%2d" % shelf_debug[row, col].quantity, end = " ")
             print()
+        print()
 
         return None
 
@@ -219,6 +222,8 @@ class Backend(object):
 
         db_connection.commit()
         db_connection.close()
+        self.refresh_inventory()
+        return None
 
     def return_item_to_inventory(self, user_id):
         db_connection = sqlite3.connect(self.db_path)
@@ -234,7 +239,6 @@ class Backend(object):
             db_cursor.execute("DELETE FROM basket WHERE basket_session_id = ?", [(session_id)])
 
             # Add to inventory
-            print(session_basket)
             for (index, quantity) in session_basket:
                 inv_quantity = db_cursor.execute("SELECT product_quantity FROM inventory WHERE product_id = ?;", [(index)]).fetchone()[0]
                 db_cursor.execute("UPDATE inventory SET product_quantity = ? WHERE product_id = ?;", [(inv_quantity + quantity), (index)])
@@ -248,6 +252,11 @@ class Backend(object):
         # inv_data = db_cursor.execute("SELECT * FROM basket;")
         # for row in inv_data:
         #     print(row)
+
+        db_connection.commit()
+        db_connection.close()
+        self.refresh_inventory()
+        return None
 
 class InventoryElement(object):
     def __init__(self, index = 0, type = -1, name = "n/a", price = 0, description = "n/a", quantity = 0):
@@ -267,15 +276,17 @@ class InventoryElement(object):
         print(self.quantity)
     
 if __name__ == '__main__':
+    #DEBUG:
     backend = Backend(r"./Database/susu_shop.db")
     backend.start_session(2)
-    shelf = backend.get_inventory()
-    # backend.debug_inventory(shelf)
+    backend.debug_inventory()
 
     backend.add_item_to_basket(10, 2)
     backend.add_item_to_basket(1, 2)
     backend.add_item_to_basket(1, 2)
+    backend.debug_inventory()
 
     backend.return_item_to_inventory(2)
-    # DEBUG:
+    backend.debug_inventory()
+
     os.remove("./Database/susu_shop.db")
